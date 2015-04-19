@@ -1,0 +1,239 @@
+---
+title: "RR-PA-1"
+output: html_document
+---
+
+This is an R markdown document being created for DASI-RR-PA-I
+
+Read the data from a csv file.
+The csv file is expected to be in the current working directory
+
+1. Load useful R libraries for further structuring of the data
+
+```{r load_libraries,message = F, warning = F, echo=T}
+        
+        library(plyr)
+        library(dplyr)
+        library(reshape2)
+        library(data.table)
+        library(lattice)
+        library(scales)
+        library(ggplot2)
+        library(tables)
+        library(knitr)
+
+        
+        
+
+```
+2. Loading and Preprocessing the data
+
+  * Read csv file and create a data table
+  
+```{r read_data,echo=T}
+  activity.data<-read.csv("activity//activity.csv",row.names=NULL,
+                          col.names=c("steps","on.date","interval"))
+  activity.data <-data.table(activity.data)
+
+
+```
+  * How does the data look like ? - Print the first 5 rows
+
+  
+```{r, 5_rows_of_data,echo = F}
+
+
+    print (activity.data[1:5,])
+
+```
+  2. Preprocess the Activity data
+  
+    * Restructure the data for plots
+    
+    * Pre-process by removing the NAs
+    * Compute the total steps for each day
+
+      
+```{r,restructure_data_for_plots,echo = T}
+
+
+  freq.tbl<-activity.data[!is.na(steps), list(total.steps = sum(steps)), 
+                                         by = list(on.date = as.Date(on.date))]
+        
+```
+  * Print restructured data table
+      
+```{r, restructured_data, echo = F}
+    print(nrow(unique(freq.tbl)))
+    print(freq.tbl[1:5,])
+```
+
+3. What is mean total number of steps taken per day?
+
+  * Make a histogram of the total number of steps taken each day
+  
+```{r, histogram, echo=T}
+
+  hist(na.omit(freq.tbl$total.steps),breaks =20,
+               main = "Distribution of total Steps/day",
+               xlab = "Total Steps",col = "lightblue")
+
+  # add the mean and median lines to the histogram
+  abline(v = mean(freq.tbl$total.steps), col = "blue", lty = 2 , lwd = 5)
+  abline(v = median(freq.tbl$total.steps), col = "black", lty = 2, lwd = 1)
+```
+ 
+ * Calculate and report the mean and median total number of steps taken per day
+ 
+ ```{r, summary_stat, echo=FALSE}
+
+  print("Mean & Median :")
+  first.mean<-mean(freq.tbl$total.steps)
+  first.mean
+    
+  first.median<-median(freq.tbl$total.steps)
+  first.median
+```
+ 
+ 3. What is the average daily activity pattern?
+  * Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) 
+    and the   average number of steps taken, averaged across all days (y-axis)
+
+  * Make a TS plot with mean steps for each 5 minute interval.
+  
+ 
+```{r, TS_plot, echo=FALSE}
+ 
+     ts.tbl <-activity.data[,list(mean.steps = mean(steps , na.rm =T)), 
+                                                  by = list(interval)]
+  
+    format.hours<- function(x){format(as.POSIXct(x*60, origin="1970-01-01"), 
+                                                     format="%H:%M")}
+    ts.tbl <-ts.tbl[, list(mean.steps, interval = format.hours(interval))]
+      
+    print(ts.tbl[1:5,])
+  
+    plot.ts(ts.tbl$mean.steps, col = "blue", type="l",xaxt = "n",
+                             main = "Average Daily Activity pattern ", 
+                             xlab="interval in minutes", 
+                             ylab = "Average daily activity")
+    axis(side =1, at = seq(0,3000,5) )
+```
+  
+ 
+  * Which 5-minute interval, on average across all the days in the dataset,
+    contains the maximum number of steps?
+
+  * Order the data table and print the first row
+  
+```{r, max_vals, echo=T}
+    max.val<-ts.tbl[order(ts.tbl$mean.steps, decreasing = T)]
+    print(max.val[1:5,])
+    print("Max value and 5 minute interval:")
+    
+    print(max.val[1,])
+```
+    4.  Imputing missing values
+ 
+    * Calculate and report the total number of missing values in the dataset
+    
+    * Draw a bar plot to indicate the number of NAs (miss.vals)
+      (i.e. the total number of rows with NAs)
+      
+```{r, missing values, echo=FALSE}
+
+    count.vals<-activity.data[, list(missing.values = length(which(is.na(steps))), 
+                                   complete.values = length(which(!is.na(steps))))]
+
+    print(count.vals[1,])
+
+    barplot(t(matrix(count.vals)),col="lightblue", 
+        names.arg= names(count.vals), ylim = c(500,16000))
+```
+
+
+    * Devise a strategy to fill missing values in the dataset
+    * Compute the mean without NAs, use that mean for each interval combination 
+      to impute     the NAs
+```{r, Impute Missing Values, echo=T}
+ 
+      impute.mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
+      
+      imputed.data <- ddply(activity.data, .(interval), transform, 
+                      steps = impute.mean(steps))
+      
+      imputed.data<-data.table(imputed.data)
+
+      print(imputed.data[1:10,])
+
+      new.freq.tbl<-imputed.data[, list(total.steps = sum(steps)), by = on.date]
+```
+  * Plot the histogram for the new distribution of activity
+  
+  
+```{r, New Hist, echo=F}
+      
+      hist(new.freq.tbl$total.steps,breaks =20, 
+                                    main = "New Distribution of total Steps each day",
+                                    xlab = "Total Steps",col = "lightblue")
+      # add the mean and median lines to the histogram
+      abline(v = mean(new.freq.tbl$total.steps), col = "blue", lty = 2 , lwd = 5)
+      abline(v = median(new.freq.tbl$total.steps), col = "black", lty = 2, lwd = 1)
+
+      
+      print("New Mean & New Median:")
+      new.mean<-mean(new.freq.tbl$total.steps)
+      new.mean
+          
+      new.median<-median(new.freq.tbl$total.steps)
+      new.median
+```
+
+
+  * Do these values differ from the estimates from the first part of the assignment?
+    What is the impact of imputing missing data on the estimates of the total
+    daily number of steps?
+  * Compute the difference between original Mean and Media v.s New Mean and Median
+  
+```{r, Difference in Estimates, echo=F}
+   print("Is there a difference in Mean and Median estimates from the first:")
+   print("Difference in Mean is equal to 0?")
+   print(isTRUE((new.mean - first.mean)==0))
+   (new.mean - first.mean)
+  
+   print("Difference in Median is equal to 0?")
+   print(isTRUE((new.median - first.median)==0))
+   (new.median-first.median)
+   
+   print("Difference in sum of total steps is equal to 0?")
+   print(isTRUE(sum(new.freq.tbl$total.steps)- sum(freq.tbl$total.steps))==0)
+   
+```  
+  5. Are there differences in activity patterns between weekdays and weekends?
+  
+    1. Create a new factor variable in the dataset with two levels - "weekday"
+       and "weekend" indicating whether a given date is a weekday or weekend day.
+       
+    2. Make a panel plot containing a time series plot (i.e. type = "l") of the
+       5-minute interval (x-axis) and the average number of steps taken, averaged
+       across all weekday days or weekend days (y-axis). 
+       
+```{r, Plot the new imputed Average activity Panel Plot, echo=F}
+      wk.days.tbl<-imputed.data[, list(meansteps = mean(steps), 
+                                     weekdays = factor(weekdays(as.Date(on.date)) %in% 
+                                                c("Saturday","Sunday")+ 1L,levels=1:2,
+                                                labels=c('weekend', 'weekday'))), 
+                                                by = interval]
+      xyplot(meansteps ~ interval| weekdays,
+                    data = wk.days.tbl,
+                    type = "l", layout = c(1,2), lwd = 1.5, col =  "blue")
+      print("From the panel plot, it can be observed that there is no difference between a week-end and a week-day activity ")
+    
+ ```
+
+ 
+ 
+ 
+ 
+ 
+ 
